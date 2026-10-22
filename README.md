@@ -1,66 +1,46 @@
-# JujuyConecta — Starter backend .NET 10 (recordatorios)
+# JujuyTech V8 — Login y perfiles
 
-Este starter acompaña a `JujuyConecta_prototipo_v4.html`. No está desplegado ni conectado todavía; requiere credenciales; las tablas de eventos y recordatorios ya fueron creadas en Supabase. Las fechas en el HTML son **ficticias**. El proyecto usa Clean Architecture (Domain / Application / Infrastructure / Api), EF Core 10 y Supabase PostgreSQL.
+## Cambios
+- Pantalla de bienvenida de doble panel inspirada en la referencia visual.
+- Ingreso con email/contraseña, registro de cuenta, Google OAuth y recuperación de contraseña, todos conectados con **Supabase Auth**.
+- Inicio de sesión obligatorio antes de mostrar cualquier vista.
+- Tres portales de ruta hash: `#/comunidad`, `#/empresarios`, `#/municipio`.
+- Rol de cada usuario validado en `public.user_profiles` mediante Supabase RLS. No se confía en la opción seleccionada ni en metadatos editables para municipio.
+- Se conserva el mapa 3D V7.3, los eventos con imágenes, el calendario y el modal de recordatorio por email.
+- Los indicadores municipales **siguen siendo una demostración**; no están autorizados ni respaldados por API administrativa real.
 
-## Primeros pasos
+## Preparación para funcionar
+1. Ya se aplicó en Supabase la migración `jujuytech_auth_portal_profiles`.
+2. En el dashboard Supabase, revisá **Authentication → Providers → Email** y **Google**; habilitá Google registrando Client ID y Client Secret propios en Google Cloud y proporcionando la URI de callback indicada por Supabase. No se pueden configurar esos datos desde el HTML.
+3. **Authentication → URL Configuration**: establecé el Site URL de la aplicación e incluí la URL de desarrollo (por ejemplo `http://localhost:5500/**`) en las redirect URLs autorizadas.
+4. Ejecutá: `cd frontend && python3 -m http.server 5500` y abrí `http://localhost:5500`.
+5. El archivo HTML standalone incluye imágenes, pero para OAuth Google **no** sirve abrirlo como `file://`. Debe alojarse mediante `http://localhost` o HTTPS.
+6. La clave pública publishable incluida en frontend es pública por diseño. Nunca pongas `service_role`, contraseña PostgreSQL o credenciales OAuth en el navegador.
 
-Requiere SDK .NET 10 y acceso a la base PostgreSQL de Supabase.
+## Roles
+- Cuenta nueva al registrarse como Comunidad: `community`.
+- Cuenta nueva al registrarse como Red Empresarial: `business`.
+- Cuenta municipal: **sólo un operador con permisos SQL administrativos** puede promover el perfil, después de que su usuario se registre:
 
-```bash
-# Desde la carpeta de este README
-export ConnectionStrings__Supabase='Host=...;Port=5432;Database=postgres;Username=...;Password=...;SSL Mode=Require;'
-export Gmail__Address='cuenta@gmail.com'
-export Gmail__AppPassword='CONTRASENA_DE_APLICACION' # NUNCA versionar
-export Job__Secret='SECRETO_LARGO_ALEATORIO'
-dotnet run --project src/JujuyConecta.Api
+```sql
+update public.user_profiles
+set role = 'municipality'
+where user_id = '<UUID_DE_UN_USUARIO_AUTORIZADO>';
 ```
 
-Para generar migraciones EF en este starter es posible que tengas que implementar `IDesignTimeDbContextFactory<JujuyDbContext>` si el entorno de tooling no puede resolver las variables de configuración. No ejecutar `EnsureCreated()` en producción.
+Nunca se permite seleccionar Admin para autoconcederse acceso. Google retorna a la ruta solicitada; el perfil persistido tiene prioridad.
 
-### Crear eventos
+## Limitación de seguridad relevante
+La separación de vistas en un HTML de navegador es una **barrera de navegación y presentación**, no autorización de datos confidenciales en el servidor. El dashboard actual muestra indicadores simulados. Antes de usar datos municipales privados habrá que implementar autenticación JWT y autorización de rol en la API .NET 10, además de control de acceso en base de datos.
 
-El backend **no siembra eventos automáticamente**. Cargá eventos validados en `events` mediante tu futura API municipal o una importación segura. Los IDs 1 a 5 del HTML solo funcionan si tenés esos mismos eventos en la base. El frontend muestra fechas inventadas para probar el `.ics`. Antes de activar el envío real, cambiá el frontend para consumir eventos reales desde `GET /api/events` (endpoint aún no implementado) y no mezcles IDs ficticios con producción.
+## Emails de asistencia
+Las dos opciones anteriores se preservan: `.ics` con alarma -PT24H y formulario de email que requiere una API .NET 10 desplegada, el proceso de envío y credenciales Gmail protegidas. Este paso **no activa** el envío automático de correos.
 
-### Registrar recordatorio
 
-`POST /api/attendances`:
+## V8.1 — Registro con Google
 
-```json
-{
-  "eventId": 123,
-  "email": "usuario@ejemplo.com",
-  "reminderConsent": true,
-  "newsConsent": false
-}
-```
+Ver [GOOGLE_OAUTH_CONFIGURACION.md](GOOGLE_OAUTH_CONFIGURACION.md). El flujo OAuth está preparado, pero activar Google requiere credenciales de Google Cloud y habilitar el proveedor en el panel de Supabase.
 
-`201` al registrar; `200` si ya existía; `400` al fallar validación; `404` evento inexistente; `409` si faltan menos de 24 horas. La fecha se guarda en UTC. El `NewsConsent` se conserva de forma independiente, pero este starter **no envía newsletters**.
 
-### Integración con HTML
-
-Con el backend expuesto en HTTPS y CORS configurado, crear un `config.js` que se cargue *antes* del script interno del HTML:
-
-```html
-<script>window.JUJUY_API_BASE_URL='https://tu-api.example.com';</script>
-```
-
-No definir en JavaScript ninguna clave privada ni credencial de Google/Supabase. Como el HTML se abre como archivo local (`file://`), para conectar la API conviene servir el HTML con un servidor local HTTP (`python -m http.server 5500`).
-
-### Enviar los correos
-
-Con una cuenta Gmail personal que permita **contraseñas de aplicación** (requiere verificación en dos pasos y sujeto a políticas de Google), configurá `Gmail__Address` y `Gmail__AppPassword`. En producción, preferir OAuth 2.0 y una plataforma transaccional con control de rebotes, baja y reputación si aumenta la escala.
-
-El envío se inicia por `POST /internal/jobs/send-reminders` con header `X-Job-Key: <Job__Secret>`. Programá la solicitud cada minuto desde Supabase Cron + pg_net o un servicio equivalente. **Este starter no instala automáticamente el Cron ni expone públicamente una clave.** En Supabase guarda el secreto en Vault o un mecanismo de secretos, no pegues credenciales en SQL versionado.
-
-### Advertencias antes de producción
-
-- Añadir verificación de email (doble opt-in), cancelación de asistencia, privacidad y retención de PII.
-- El rate limiting incluido es global por instancia; para servicios públicos implementá protección distribuida/IP, CAPTCHA y monitoreo anti-abuso.
-- Mejorar persistencia de trabajos tipo Outbox y supervisión de entregas: SMTP es *al menos una vez*, no exactamente una vez si falla tras enviar y antes de registrar `Sent`.
-- Mantener los eventos y fechas sincronizados entre la API y el frontend; recalcular fechas de recordatorios cuando se reprograme un evento.
-- Usar autenticación real para los endpoints administrativos. Las consultas del dashboard no están implementadas en este starter.
-- Configurar SPF/DKIM/DMARC cuando se utilice un dominio propio, y monitorear límites de Gmail.
-- Este starter es base de implementación, no un sistema productivo auditado. 
-
-## Base remota existente
-La migración `initial_events_and_attendance_reminders` ya fue aplicada a Supabase; no ejecutar una migración EF InitialCreate que duplique esas tablas. Consulta el README principal de V5.
+## Integración Hacki (V8.3)
+Ver `INTEGRACION_HACKI.md` para funcionalidades, despliegue de IA y límites actuales.

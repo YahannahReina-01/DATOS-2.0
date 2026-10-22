@@ -36,7 +36,7 @@ app.MapGet("/api/events",async(JujuyDbContext db,TimeProvider clock,Cancellation
         .OrderBy(e=>e.StartsAtUtc)
         .Take(100)
         .Select(e=>new{
-            e.Id,e.Title,e.Location,e.StartsAtUtc,e.DurationMinutes,e.Description,e.Category,e.AdmissionInfo,e.ImageUrl,e.SourceUrl,e.VisitorTip,e.Organizer
+            e.Id,e.Title,e.Location,e.StartsAtUtc,e.DurationMinutes,e.Description,e.Category,e.AdmissionInfo,e.ImageUrl,e.SourceUrl,e.VisitorTip,e.Organizer,e.Latitude,e.Longitude,e.GeoSource
         })
         .ToListAsync(ct);
     return Results.Ok(published);

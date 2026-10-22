@@ -11,6 +11,9 @@ public sealed class JujuyDbContext(DbContextOptions<JujuyDbContext> options) : D
         {
             e.ToTable("events"); e.HasKey(x=>x.Id);
             e.Property(x=>x.Title).HasMaxLength(180).IsRequired();
+            e.Property(x=>x.Latitude).HasPrecision(9,6);
+            e.Property(x=>x.Longitude).HasPrecision(9,6);
+            e.Property(x=>x.GeoSource).HasMaxLength(160);
             e.Property(x=>x.Location).HasMaxLength(300).IsRequired();
             e.Property(x=>x.Category).HasMaxLength(80);
             e.Property(x=>x.AdmissionInfo).HasMaxLength(180);

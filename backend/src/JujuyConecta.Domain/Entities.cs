@@ -2,6 +2,9 @@ namespace JujuyConecta.Domain;
 public enum ReminderState { Pending = 0, Processing = 1, Sent = 2, Failed = 3, Cancelled = 4 }
 public sealed class CommunityEvent
 {
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+    public string? GeoSource { get; set; }
     public long Id { get; set; }
     public string Title { get; set; } = "";
     public string Location { get; set; } = "";
